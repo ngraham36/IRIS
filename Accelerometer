@@ -1,1 +1,12 @@
+#include <Wire.h>
+#include <SparkFun_ICM_20948.h>
 
+ICM_20948_I2C imu;
+
+#define SDA_PIN 6
+#define SCL_PIN 7
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin(SDA_PIN, SCL_PIN);
+}
