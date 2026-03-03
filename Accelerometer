@@ -1,12 +1,50 @@
 #include <Wire.h>
-#include <SparkFun_ICM_20948.h>
+#include <ICM_20948.h>
 
 ICM_20948_I2C imu;
 
-#define SDA_PIN 6
-#define SCL_PIN 7
-
 void setup() {
   Serial.begin(115200);
-  Wire.begin(SDA_PIN, SCL_PIN);
+  delay(1000);
+
+  Wire.begin();  // Use default I2C pins
+
+  Serial.println("ICM-20948 Qwiic Test");
+
+  if (imu.begin(Wire, 0x68) != ICM_20948_Stat_Ok) {
+    Serial.println("Trying 0x69...");
+    if (imu.begin(Wire, 0x69) != ICM_20948_Stat_Ok) {
+      Serial.println("IMU not detected. Check Qwiic cable.");
+      while (1);
+    }
+  }
+
+  Serial.println("IMU connected via Qwiic!");
+}
+
+void loop() {
+  imu.getAGMT();
+
+  Serial.print("Accel: ");
+  Serial.print(imu.accX());
+  Serial.print(", ");
+  Serial.print(imu.accY());
+  Serial.print(", ");
+  Serial.print(imu.accZ());
+
+  Serial.print(" | Gyro: ");
+  Serial.print(imu.gyrX());
+  Serial.print(", ");
+  Serial.print(imu.gyrY());
+  Serial.print(", ");
+  Serial.print(imu.gyrZ());
+
+  Serial.print(" | Mag: ");
+  Serial.print(imu.magX());
+  Serial.print(", ");
+  Serial.print(imu.magY());
+  Serial.print(", ");
+  Serial.println(imu.magZ());
+
+  delay(200);
 }
