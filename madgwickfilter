@@ -1,0 +1,70 @@
+#include <Wire.h>
+#include <ICM_20948.h>
+#include "MadgwickAHRS.h"
+
+// head tracking with filter
+ICM_20948_I2C imu;
+Madgwick filter;
+
+// Timing
+unsigned long lastUpdate = 0;
+float dt = 0.005; // 200 hz
+
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+
+  Wire.begin();
+
+  Serial.println("Madgwick AR Head Tracking");
+
+  if (imu.begin(Wire, 0x68) != ICM_20948_Stat_Ok) {
+    Serial.println("Trying 0x69...");
+    if (imu.begin(Wire, 0x69) != ICM_20948_Stat_Ok) {
+      Serial.println("IMU not detected. Check Qwiic cable.");
+      while (1);
+    }
+  }
+
+  Serial.println("IMU connected via Qwiic!");
+  filter.begin(200); // madgwick gain tweaked for smoothness
+}
+
+void loop() {
+  unsigned long now = millis();
+  dt = (now - lastUpdate) / 1000.0;
+  lastUpdate = now;
+
+  imu.getAGMT();
+
+  // sensors all 9 degrees
+  float ax = imu.accX();
+  float ay = imu.accY();
+  float az = imu.accZ();
+  float gx = imu.gyrX(); 
+  float gy = imu.gyrY();
+  float gz = imu.gyrZ();
+  float mx = imu.magX();
+  float my = imu.magY();
+  float mz = imu.magZ();
+
+  // madgwick filter
+  filter.update(gx, gy, gz, ax, ay, az, mx, my, mz);
+
+  //euler angles in degrees
+  float pitch = filter.getPitch();
+  float roll  = filter.getRoll();
+  float yaw   = filter.getYaw();
+
+  Serial.print("Pitch: "); Serial.print(pitch);
+  Serial.print(" | Roll: "); Serial.print(roll);
+  Serial.print(" | Yaw: "); Serial.println(yaw);
+
+  /*
+  Serial.print("Accel: "); Serial.print(ax); Serial.print(", "); Serial.print(ay); Serial.print(", "); Serial.println(az);
+  Serial.print("Gyro: "); Serial.print(gx); Serial.print(", "); Serial.print(gy); Serial.print(", "); Serial.println(gz);
+  Serial.print("Mag: "); Serial.print(mx); Serial.print(", "); Serial.print(my); Serial.print(", "); Serial.println(mz);
+  */
+
+  delay(5);
+}
