@@ -25,6 +25,28 @@ void setup() {
 void loop() {
   imu.getAGMT();
 
+  float ax = imu.accX();
+  float ay = imu.accY();
+  float az = imu.accZ();
+  
+  // Convert to g's
+  
+  float pitch = atan2(-ax, sqrt(ay * ay + az * az)) * 180.0 / PI;
+  float roll  = atan2(ay, az) * 180.0 / PI;
+  
+  Serial.print(" | Pitch: ");
+  Serial.print(pitch);
+  
+  Serial.print(" | Roll: ");
+  Serial.println(roll);
+
+  float mx = imu.magX();
+  float my = imu.magY();
+  float yaw = atan2(my, mx) * 180.0 / PI;
+  
+  Serial.print(" | Yaw: ");
+  Serial.println(yaw);
+
   Serial.print("Accel: ");
   Serial.print(imu.accX());
   Serial.print(", ");
