@@ -6,15 +6,15 @@
 #include <Adafruit_ST7735.h>
 #include <SPI.h>
 
-// Pins that worked for your ESP32-C6 Scanner
-#define I2C_SDA 6
-#define I2C_SCL 7
+// Pins that worked for your ESP32 Feather S2 Scanner
+#define I2C_SDA 8
+#define I2C_SCL 9
 #define BNO08X_RESET -1
 
 // ---------------- TFT ----------------
 #define TFT_CS   10
 #define TFT_RST  9
-#define TFT_DC   8
+#define TFT_DC   33
 
 Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 
@@ -63,7 +63,7 @@ void setup(void) {
 
   Serial.println("--- ESP32-C6 BNO08x YPR Test ---");
 
-  // opens pins 6 (SDA) and 7 (SCL)
+  // opens pins 8 (SDA) and 9 (SCL)
   Wire.begin(I2C_SDA, I2C_SCL);
   delay(500); // wait for sensor to be ready
 
@@ -139,6 +139,13 @@ void drawTriangleCenter(int centerX, int centerY, uint16_t color) {
 
 
 void loop() {
+
+  tft.invertDisplay(true);
+
+   // Frame timer
+  static unsigned long lastFrame = 0;
+  unsigned  long now = millis();
+  
   // WILL TRIGGER IF WIRE MOVES OR POWER DIPS (reboots the sensor)
   if (bno08x.wasReset()) {
     Serial.print("Sensor was reset! ");
@@ -166,6 +173,10 @@ void loop() {
     }
   }
 
+  // Skip redraw if frame hasn't reached 33 fps limit
+  if (now - lastFrame < 33) return;
+  lastFrame = now;
+
   headPitch = ypr.pitch;
   headYaw = ypr.yaw;
   headRoll = ypr.roll;
@@ -176,25 +187,37 @@ void loop() {
 
   // -------- WORLD OBJECTS --------
 
-  float obj1Yaw = 0;
+  /*float obj1Yaw = 0;
   float obj1Pitch = 0;
 
   float obj2Yaw = 15;
   float obj2Pitch = 5;
 
   float obj3Yaw = -10;
-  float obj3Pitch = -5;
+  float obj3Pitch = -5;*/
+
+  //Initilaize anchor of the real world object
+  float anchorWorldX = 0.0;
+  float anchorWorldY = 0.0;
+
+  // Real object 2 - starting from different starting point in real world
+  float anchorWorldX2 = 1.0;
+  float anchorWorldY2 = 1.0;
+
+  // Real object 3 - starting from different starting point in real world
+  float anchorWorldX3 = 5.0;
+  float anchorWorldY3 = 5.0;
 
  // -------- MAP TO SCREEN --------
   // all three focus on both yaw and pitch changes instead of the alternating in the tft script
-  int cx  = worldToScreenX(obj1Yaw, smoothYaw);
-  int cy  = worldToScreenY(obj1Pitch, smoothPitch);
+  int cx  = worldToScreenX(anchorWorldX, smoothYaw);
+  int cy  = worldToScreenY(anchorWorldY, smoothPitch);
 
-  int cx2 = worldToScreenX(obj2Yaw, smoothYaw);
-  int cy2 = worldToScreenY(obj2Pitch, smoothPitch);
+  int cx2 = worldToScreenX(anchorWorldX2, smoothYaw);
+  int cy2 = worldToScreenY(anchorWorldY2, smoothPitch);
 
-  int cx3 = worldToScreenX(obj3Yaw, smoothYaw);
-  int cy3 = worldToScreenY(obj3Pitch, smoothPitch);
+  int cx3 = worldToScreenX(anchorWorldX3, smoothYaw);
+  int cy3 = worldToScreenY(anchorWorldY3, smoothPitch);
 
   // -------- DRAW --------
   tft.fillScreen(ST77XX_BLACK);
@@ -208,7 +231,7 @@ void loop() {
 // movement too sensitive * (SCREEN_W / 2.0)
 //jitter lower alpha = 0.05;
 
-  delay(10); // ~100 Hz
+  //delay(10); // ~100 Hz
 
 
 
