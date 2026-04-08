@@ -116,7 +116,7 @@ void drawTriangleCenter(int centerX, int centerY, uint16_t color) {
 
 void setup() {
   SERIAL_PORT.begin(115200);
-  while (!SERIAL_PORT){};
+  //while (!SERIAL_PORT){};
 
   WIRE_PORT.begin();
   WIRE_PORT.setClock(400000); //Setting the clock frequency
