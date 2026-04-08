@@ -1,22 +1,22 @@
 #include <Wire.h>
 #include <ICM_20948.h>
-#include "MadgwickAHRS.h"
-
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7735.h>
 #include <SPI.h>
 
 // ---------------- IMU ----------------
 ICM_20948_I2C imu;
-Madgwick filter;
 #define SERIAL_PORT Serial
 #define WIRE_PORT Wire
 #define AD0_VAL 1
 
+//Polling
+#define IMU_INTERVALS_MS  50 
+
 
 // ---------------- TFT ----------------
 #define TFT_CS   10
-#define TFT_RST  9
+#define TFT_RST  3
 #define TFT_DC   33
 
 Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
@@ -35,46 +35,78 @@ float anchorWorldX = 0.0;
 float anchorWorldY = 0.0;
 
 // Real object 2 - starting from different starting point in real world
-float anchorWorldX2 = 1.0;
-float anchorWorldY2 = 1.0;
+float anchorWorldX2 = 30.0;
+float anchorWorldY2 = 20.0;
 
 // Real object 3 - starting from different starting point in real world
-float anchorWorldX3 = 5.0;
-float anchorWorldY3 = 5.0;
-
-// Timing
-unsigned long lastUpdate = 0;
-float dt = 0.005; // 200 hz
-
-// Smoothing
-float smoothYaw = 0;
-float smoothPitch = 0;
-float alpha = 0.1;
+float anchorWorldX3 = 50.0;
+float anchorWorldY3 = 60.0;
 
 // Head tracking
-float headPitch = 0;
-float headYaw   = 0;
-float headRoll  = 0;
-
+float headPitch = 0.0;
+float headYaw   = 0.0;
+float headRoll  = 0.0;
 
 // ---------------- HELPERS ----------------
-float wrapAngle(float angle) {
-  while (angle > 180) angle -= 360;
-  while (angle < -180) angle += 360;
-  return angle;
-//acc for 360 rotation hopefully
+void readIMU(){
+  static unsigned long lastIMU = 0;
+  unsigned long now = millis();
+  if (now - lastIMU < IMU_INTERVALS_MS) return;
+  lastIMU = now;
+
+   if (!imu.dataReady()){
+    SERIAL_PORT.println("IMU not ready");
+    return;
+  }
+
+  imu.getAGMT();
+
+  float ax = imu.accX();
+  float ay = imu.accY();
+  float az = imu.accZ();
+
+  headPitch = atan2(-ax, sqrt(ay * ay + az * az)) * 180.0 / PI;
+  headRoll  = atan2(ay, az) * 180.0 / PI;
+
+  float mx = imu.magX();
+  float my = imu.magY();
+
+  headYaw = atan2(my, mx) * 180.0 / PI;
+
+
+  //SERIAL_PORT.println();
+  //SERIAL_PORT.print("Pitch: "); Serial.print(headPitch);
+  //SERIAL_PORT.print(" | Roll: "); Serial.print(headRoll);
+  //SERIAL_PORT.print(" | Yaw: "); Serial.println(headYaw);
+
+  SERIAL_PORT.println();
+  SERIAL_PORT.print("ax: "); Serial.print(ax);
+  SERIAL_PORT.print(" | ay: "); Serial.print(ay);
+  SERIAL_PORT.print(" | az: "); Serial.print(az);
+  SERIAL_PORT.print(" | mx: "); Serial.print(mx);
+  SERIAL_PORT.print(" | my: "); Serial.println(my);
+
 }
+
 
 int worldToScreenX(float worldAngle, float headYaw){
   float delta = worldAngle - headYaw;
-  //Serial.println((int)(-delta / (FOV_H / 2.0) + 1.0) * (SCREEN_W/12.0));
+   // 04/7 - This equation works better
   return (int)((-delta / (FOV_H / 2.0) + 1.0) * (SCREEN_W/12.0));
+
+  /*SERIAL_PORT.print("WorldX: "); SERIAL_PORT.print((int)((delta / (FOV_H / 2.0) + 1.0) * (SCREEN_W / 2.0)));
+  //SERIAL_PORT.println();
+  //return (int)((delta / (FOV_H / 2.0) + 1.0) * (SCREEN_W / 2.0));*/
 
 }
 
 int worldToScreenY(float worldAngle, float headPitch){
   float delta = worldAngle - headPitch;
+  // 04/7 - This equation works better
   return (int)((-delta / (FOV_V / 2.0) + 1.0) * (SCREEN_H/12.0));
+
+  /*SERIAL_PORT.print("WorldY: "); SERIAL_PORT.print((int)((delta / (FOV_V / 2.0) + 1.0) * (SCREEN_H / 2.0)));
+  return (int)((delta / (FOV_V / 2.0) + 1.0) * (SCREEN_H / 2.0));*/
 
 }
 
@@ -83,13 +115,15 @@ void drawTriangleCenter(int centerX, int centerY, uint16_t color) {
 }
 
 void setup() {
-  Serial.begin(115200);
+  SERIAL_PORT.begin(115200);
+  while (!SERIAL_PORT){};
 
   WIRE_PORT.begin();
   WIRE_PORT.setClock(400000); //Setting the clock frequency
 
   imu.enableDebugging();
 
+  //Initialize IMU
   bool initialized = false;
   while (!initialized)
   {
@@ -108,72 +142,42 @@ void setup() {
       }
   }
 
-  Serial.println("Madgwick AR Head Tracking");
-
-  /*if (imu.begin(Wire, 0x68) != ICM_20948_Stat_Ok) {
-    Serial.println("Trying 0x69...");
-    if (imu.begin(Wire, 0x69) != ICM_20948_Stat_Ok) {
-      Serial.println("IMU not detected. Check Qwiic cable.");
-      while (1);
-    }
-  }*/
-
-  Serial.println("IMU connected via Qwiic!");
-  filter.begin(20); // madgwick gain tweaked for smoothness
+  SERIAL_PORT.println("AR Head Tracking");
+  delay(250);
 
   // TFT setup
   tft.setSPISpeed(40000000);
   tft.initR(INITR_MINI160x80);
   tft.setRotation(3);
   tft.fillScreen(ST77XX_BLACK);
-  Serial.println(F("Tft Initialized"));
+  tft.invertDisplay(true);
+  SERIAL_PORT.println(F("Tft Initialized"));
 
-  Serial.println("AR System Ready");
+  SERIAL_PORT.println("AR System Ready");
 }
 
 void loop() {
-  tft.invertDisplay(true);
+  //tft.invertDisplay(true);
+
+  //Poll IMU data
+  readIMU();
 
   //Edit - trying to use real-delta timing
-  static unsigned long lastUpdate = 0;
-  const unsigned long interval = 5000;
-
-  unsigned long microNow = micros();
-
-  // Timing of redraw and data polling; around 200 Hz
-  if (microNow-lastUpdate >= interval){
-    lastUpdate += microNow;
-
-    imu.getAGMT();
-
-    //printScaledAGMT(&imu); // This function takes into account the scale settings from when the measurement was made to calculate the values with units
-    getReadings(&imu);
-    //delay(100);
-
-  }
-
-  //Wrapping angles
-  headYaw = wrapAngle(headYaw);
-  headPitch = wrapAngle(headPitch);
-
-  // Smoothing
-  float deltaYaw = wrapAngle(headYaw-smoothYaw);
-  smoothYaw += alpha * deltaYaw;
-
-  float deltaPitch = wrapAngle(headPitch-smoothPitch);
-  smoothPitch += alpha * deltaPitch;
-
+  static unsigned long lastFrame = 0;
+  unsigned  long now = millis();
+  if (now - lastFrame < 33) return;
+  lastFrame = now;
 
   // -------- MAP TO SCREEN --------
   // all three focus on both yaw and pitch changes instead of the alternating in the tft script
-  int cx  = worldToScreenX(anchorWorldX, smoothYaw);
-  int cy  = worldToScreenY(anchorWorldY, smoothPitch);
+  int cx  = worldToScreenX(anchorWorldX, headYaw);
+  int cy  = worldToScreenY(anchorWorldY, headPitch);
 
-  int cx2 = worldToScreenX(anchorWorldX2, smoothYaw);
-  int cy2 = worldToScreenY(anchorWorldY2, smoothPitch);
+  int cx2 = worldToScreenX(anchorWorldX2, headYaw);
+  int cy2 = worldToScreenY(anchorWorldY2, headPitch);
 
-  int cx3 = worldToScreenX(anchorWorldX3, smoothYaw);
-  int cy3 = worldToScreenY(anchorWorldY3, smoothPitch);
+  int cx3 = worldToScreenX(anchorWorldX3, headYaw);
+  int cy3 = worldToScreenY(anchorWorldY3, headPitch);
 
   // -------- DRAW --------
   tft.fillScreen(ST77XX_BLACK);
@@ -183,35 +187,4 @@ void loop() {
   drawTriangleCenter(cx3, cy3, ST77XX_WHITE);
 }
 
-
-
-void getReadings(ICM_20948_I2C *sensor){
-  float ax = sensor->accX();
-  float ay = sensor->accY();
-  float az = sensor->accZ();
-  float gx = sensor->gyrX(); 
-  float gy = sensor->gyrY();
-  float gz = sensor->gyrZ();
-  float mx = sensor->magX();
-  float my = sensor->magY();
-  float mz = sensor->magZ();
-
-  // madgwick filter
-  /*filter.update(
-  gx,
-  gy,
-  gz,
-  ax, ay, az,
-  mx, my, mz);*/
-
-  //euler angles in degrees
-  // FIND OUT HOW TO GET PITCH ROLL AND YAW WITHOUT FILTER
-  float headPitch = filter.getPitch();
-  float headYaw   = filter.getYaw();
-  float headRoll  = filter.getRoll();
-
-  Serial.print("Pitch: "); Serial.print(headPitch);
-  Serial.print(" | Roll: "); Serial.print(headRoll);
-  Serial.print(" | Yaw: "); Serial.println(headYaw);
-}
 
