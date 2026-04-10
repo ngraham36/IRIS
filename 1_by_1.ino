@@ -87,10 +87,16 @@ void readIMU(){
   SERIAL_PORT.print(" | my: "); Serial.println(my);
 
 }
-
+//Possible wrap around code
+/*float wrapAngle(float angle) {
+  while (angle > 180) angle -= 360;
+  while (angle < -180) angle += 360;
+  return angle;
+}*/
 
 int worldToScreenX(float worldAngle, float headYaw){
   float delta = worldAngle - headYaw;
+  //float delta = wrapAngle(worldAngle - headYaw);
    // 04/7 - This equation works better
   return (int)((-delta / (FOV_H / 2.0) + 1.0) * (SCREEN_W/12.0));
 
@@ -102,6 +108,7 @@ int worldToScreenX(float worldAngle, float headYaw){
 
 int worldToScreenY(float worldAngle, float headPitch){
   float delta = worldAngle - headPitch;
+  //float delta = wrapAngle(worldAngle = headPitch);
   // 04/7 - This equation works better
   return (int)((-delta / (FOV_V / 2.0) + 1.0) * (SCREEN_H/12.0));
 
